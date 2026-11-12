@@ -1,5 +1,7 @@
 package dev.slate.launcher.widgets
 
+import kotlinx.coroutines.flow.first
+import dev.slate.launcher.container
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -53,7 +55,7 @@ class WeatherRepository(private val context: Context) {
         if (_snapshot.value == null) _snapshot.value = readCache()
         val current = _snapshot.value
         val samePlace = current != null && current.latitude == latitude && current.longitude == longitude
-        val fahrenheit = WeatherCodes.usesFahrenheit(context.resources.configuration.locales[0])
+        val fahrenheit = context.container.settingsRepository.settings.first().clock.fahrenheit
         val fresh = samePlace && current.fahrenheit == fahrenheit &&
             System.currentTimeMillis() - current.fetchedAtMillis < STALE_AFTER_MS
         if (fresh && !force) return Refresh.Fresh

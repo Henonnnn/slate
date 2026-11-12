@@ -53,7 +53,8 @@ parser (`<issue` and its attributes sit on separate lines, so `grep -c "<issue "
   from the wallpaper's dark-text hint; screens with their own dark ground read `palette.onDark()`), `LocalSlateText` (font + scale; read as `SlateText.appLabel` via a composable getter),
   `LocalAppearance` (non-colour options like showIcons). `Accent` is pure colour maths (tested);
   `wallpaperPrimaryColor()` reads WallpaperColors (no permission, no pixels).
-- `ui/appearance` — `AppearanceScreen` (live preview over the wallpaper; home fades out underneath),
+- `ui/appearance` — `AppearanceScreen` (solid ground like every settings screen; the live preview sits in a `PreviewWindow`, a rounded hole cleared
+  through `PanelBackdrop`'s offscreen layer to the real wallpaper, with the home palette and dimming),
   `IconPickerSheet` (Icon Assistant). Theme data: `data/ThemeSettings.kt` (+ `Presets`, `IconOverride`).
 - `ui/home` — `HomeRoute`/`HomeScreen` (normal + favourites edit mode), `HomeViewModel`, `HomeHeader`, `AppRow`,
   `AppActionsSheet` (shortcuts, info, uninstall), `RenameDialog`,
@@ -77,6 +78,7 @@ parser (`<issue` and its attributes sit on separate lines, so `grep -c "<issue "
   favourites and all apps, so LazyColumn keys are prefixed (`fav:`, `all:`, `hid:`, `pri:`). Windows 600 dp or wider use
   two panes (home left in `topListState`, all apps right in `listState`); edit mode stays one pane.
 - `widgets/` — `WidgetRepository` (one `SlateWidgetHost`, provider list, bind helpers, orphan cleanup),
+  `WeatherApps` (the app the temperature under the clock opens: `ClockSettings.weatherApp` or a guess; the unit is `ClockSettings.fahrenheit`, Celsius by default, never the locale),
   `SlateWidgetHostView` (steals long-press from widget content), `WidgetBinder` (allocate → bind/permission dialog →
   configure → place; configure results arrive via `MainActivity.onActivityResult`), `CalendarSource` +
   pure `CalendarFormat`, `WeatherRepository` + `Weather.kt` models/WMO codes.
@@ -88,7 +90,8 @@ parser (`<issue` and its attributes sit on separate lines, so `grep -c "<issue "
   the system's dot rules; `dismiss` and `reply`), pure `NotificationRules` (Niagara's ranks, order, wording, group clearing; tested), `NotificationDetail`
   (full content, read only when expanded), `NotificationAccess` (deep link to the listener switch; `reconnect`, since Android won't rebind after a
   crash or force stop). Filter on the channel's `canShowBadge`, never `Ranking.canShowBadge()`: that is false for everything when dots are off system-wide.
-  Pop-up tiles and the pinned `ReplyBox` are in `ui/home/PopupNotifications.kt`. Explainer: `ui/onboarding/NotificationCard`.
+  Pop-up tiles and the pinned `ReplyBox` are in `ui/home/PopupNotifications.kt`; a tile follows Niagara's `popup_tile_notification`: a header beside the
+  36 dp icon (24 dp gap, bold title and time, one secondary line), a round unfold button, and once unfolded the body, messages, picture and chips under both, full width. Explainer: `ui/onboarding/NotificationCard`.
 - `floating/` — sources for The Pill (the bar at the bottom, once "floating button"): `MediaSessions` (top media session with
   position, duration and seek; needs notification access, else null), `LiveActivity` (ongoing notifications that count time, ring, or
   are promoted live updates, from `NotificationStore.live`), `nextAlarm()` (AlarmManager, no permission), pure `FloatingChooser`
@@ -117,7 +120,7 @@ parser (`<issue` and its attributes sit on separate lines, so `grep -c "<issue "
 - `ui/settings` — `SettingsScreen` (a hub of topics showing their current state, each opening a page, The Pill's among them) + `SettingsViewModel`.
   Full screens handle back with `rememberBackProgress` + `Modifier.backProgress` (predictive back: they shrink under the gesture). The alphabet is
   not composed under them: its `systemGestureExclusion` strip would swallow the system's edge swipe. Every row has
-  an icon and, where it helps, a one-line summary. Solid background (`PanelBackdrop(solid = true)`) with flat rows, labels aligned to the row titles, and a centred title that collapses into the toolbar (`SettingsPage`); Appearance and Clock keep the wallpaper for their previews, so their rows sit on cards.
+  an icon and, where it helps, a one-line summary. Solid background (`PanelBackdrop(solid = true)`) with flat rows, labels aligned to the row titles, and a centred title that collapses into the toolbar (`SettingsPage`); Appearance and Clock show their previews in a `PreviewWindow`; nothing is see-through any more.
   Shares `PanelBackdrop`/`Group`/`section`/`LinkRow`/`StatusRow`/`ChoiceRow`/`Chip`/`ToggleRow`/`ScreenTitle` with `ui/appearance`, which also has `ClockScreen`.
   The look (2026-11-12 redesign) lives in those helpers: a `Group` is a rounded card of tiles (`Modifier.piece()`, 2 dp gaps) on `palette.ground`
   (the accent's hue, dark, in three steps), icons sit on tinted discs (the hub gives each topic its own hue), values show in pills, a `ChoiceRow`

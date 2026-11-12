@@ -75,6 +75,10 @@ data class ClockSettings(
     val showEvents: Boolean = true,
     val showAlarm: Boolean = true,
     val showBattery: Boolean = false,
+    /** Celsius unless the user asks for Fahrenheit, whatever the phone's region. */
+    val fahrenheit: Boolean = false,
+    /** Package the temperature opens; null picks an installed weather app. */
+    val weatherApp: String? = null,
 ) {
     fun sanitized(): ClockSettings = copy(size = if (size.isNaN()) 1f else size.coerceIn(MIN_SIZE, MAX_SIZE))
 
