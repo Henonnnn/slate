@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Lets the system uninstaller be opened from the long-press sheet (normal permission). -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+
+    <!-- Optional: contact names in search. Asked for inline, with an explanation, only when the user opts in. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
+    <!-- Optional, asked for by the calendar widget with an explanation. -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <!-- Weather widget only: Open-Meteo, the app's single network destination. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Optional, for "use my approximate location" in the weather widget. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- Usage Breaker and the screen-time dashboard. A special app-op the user grants in settings
+         ("Usage access"), explained first; everything works without it, minus the numbers. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <!-- Usage Breaker's "time's up" reminder; asked for when the first app gets a breaker. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Lets the default home app see the private space (normal permission; Android 15+). -->
+    <uses-permission android:name="android.permission.ACCESS_HIDDEN_PROFILES" />
+    <!-- Reading whether Bluetooth is on needed this up to Android 11; later versions need nothing. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+
+    <!-- Package visibility: lets the launcher see every launchable activity. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <!-- Other home apps, so screen time can leave them out. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+        <!-- Icon packs (ADW / Nova / Go / Apex formats) announce themselves with these. -->
+        <intent><action android:name="org.adw.launcher.THEMES" /></intent>
+        <intent><action android:name="com.novalauncher.THEME" /></intent>
+        <intent><action android:name="com.teslacoilsw.launcher.THEME" /></intent>
+        <intent><action android:name="com.gau.go.launcherex.theme" /></intent>
+        <intent><action android:name="com.anddoes.launcher.THEME" /></intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="com.fede.launcher.THEME_ICONPACK" />
+        </intent>
+    </queries>
+
+    <!-- allowBackup=false already disables backup on API 30-31; the rules file covers 12+. -->
+    <application
+        android:name=".SlateApp"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:enableOnBackInvokedCallback="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Slate"
+        tools:ignore="DataExtractionRules"
+        tools:targetApi="36">
+
+        <activity
+            android:name=".MainActivity"
+            android:clearTaskOnLaunch="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:resizeableActivity="true"
+            android:taskAffinity=""
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <!-- Also launchable from other launchers while testing. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- "Add to home screen" requests from apps; only delivered while Slate is the home app. -->
+        <activity
+            android:name=".PinShortcutActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Slate.Translucent">
+            <intent-filter>
+                <action android:name="android.content.pm.action.CONFIRM_PIN_SHORTCUT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Notification dots and previews. The user turns this on in system settings; Slate
+             explains it first (NotificationCard) and works without it. -->
+        <service
+            android:name=".notifications.NotificationService"
+            android:exported="true"
+            android:label="@string/notification_service_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name=".wellbeing.BreakerReminder$Receiver"
+            android:exported="false" />
+    </application>
+</manifest>
