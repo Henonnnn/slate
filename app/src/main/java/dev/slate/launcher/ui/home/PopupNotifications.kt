@@ -1,5 +1,6 @@
 package dev.slate.launcher.ui.home
 
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
@@ -80,7 +81,8 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 private val IconSize = 36.dp
-private val AvatarSize = 28.dp
+/** Niagara's gap between a tile's icon and its text. */
+private val IconGap = 24.dp
 private val ChipShape = RoundedCornerShape(16.dp)
 private val ReplyShape = RoundedCornerShape(19.dp)
 private const val COLLAPSED_LINES = 1
@@ -112,7 +114,8 @@ fun NotificationTile(
 ) {
     val palette = LocalSlatePalette.current
     val context = LocalContext.current
-    val secondary = SlateText.hint.copy(fontSize = 14.sp, shadow = null)
+    val secondary = SlateText.hint.copy(fontSize = 14.sp, lineHeight = 20.sp, shadow = null)
+    val primary = SlateText.appLabel.copy(fontSize = 16.sp, fontWeight = FontWeight.SemiBold, shadow = null)
     val nowLabel = stringResource(R.string.calendar_now)
     val time = remember(n.postTime, nowLabel) {
         val now = System.currentTimeMillis()
@@ -136,41 +139,53 @@ fun NotificationTile(
             onLongClick = onLongClick,
             onClick = onOpen,
         ) {
-            val icon = largeIcon
-            if (icon != null) {
-                Image(icon, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(IconSize).clip(CircleShape))
-            } else {
-                AppIcon(owner, IconSize)
-            }
-            Spacer(Modifier.width(12.dp))
+            // Niagara's tile: a header beside the icon, and once unfolded the content under both,
+            // across the whole card, so long text isn't squeezed into a column.
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        (shown?.title ?: n.title).ifBlank { owner.label },
-                        style = SlateText.appLabel.copy(fontSize = 16.sp, shadow = null),
-                        color = palette.onWallpaper,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    Text(listOfNotNull("", appName, time).joinToString(" · "), style = secondary, color = palette.onWallpaperMuted, maxLines = 1)
-                }
-                if (shown == null) {
-                    if (n.text.isNotBlank()) {
-                        Text(
-                            n.text,
-                            style = secondary,
-                            color = palette.onWallpaperMuted,
-                            maxLines = if (n.isConversation) CONVERSATION_LINES else COLLAPSED_LINES,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                    val icon = largeIcon
+                    if (icon != null) {
+                        Image(icon, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(IconSize).clip(CircleShape))
+                    } else {
+                        AppIcon(owner, IconSize)
                     }
-                } else {
-                    Expanded(shown, onAction, onSmartReply)
+                    Spacer(Modifier.width(IconGap))
+                    Column(Modifier.weight(1f)) {
+                        // In a list of several apps the app is the headline and the title the line under it.
+                        val headline = appName ?: (shown?.title ?: n.title).ifBlank { owner.label }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(headline, style = primary, color = palette.onWallpaper, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                            Text(" · $time", style = primary, color = palette.onWallpaperMuted, maxLines = 1)
+                        }
+                        val second = if (appName != null) (shown?.title ?: n.title) else shown?.subText.orEmpty()
+                        if (second.isNotBlank()) {
+                            Text(second, style = secondary, color = palette.onWallpaperMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                        }
+                        if (shown == null && n.text.isNotBlank()) {
+                            Text(
+                                n.text,
+                                style = secondary,
+                                color = palette.onWallpaperMuted,
+                                maxLines = if (n.isConversation) CONVERSATION_LINES else COLLAPSED_LINES,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Box(
+                        Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(palette.panelRaised)
+                            .clickable(role = Role.Button, onClickLabel = toggleLabel, onClick = onToggle)
+                            .semantics { contentDescription = toggleLabel },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        SlateIconView(SlateIcon.ChevronDown, palette.accent, Modifier.graphicsLayer { rotationZ = rotation }, size = 20.dp)
+                    }
                 }
-            }
-            IconButton(onClick = onToggle, modifier = Modifier.size(36.dp).semantics { contentDescription = toggleLabel }) {
-                SlateIconView(SlateIcon.ChevronDown, palette.onWallpaperMuted, Modifier.graphicsLayer { rotationZ = rotation }, size = 20.dp)
+                if (shown != null) Expanded(shown, onAction, onSmartReply)
             }
         }
     }
@@ -180,39 +195,53 @@ fun NotificationTile(
 @Composable
 private fun Expanded(detail: NotificationDetail, onAction: (NotificationAction) -> Unit, onSmartReply: (NotificationReply, String) -> Unit) {
     val palette = LocalSlatePalette.current
-    val secondary = SlateText.hint.copy(fontSize = 14.sp, shadow = null)
-    detail.subText?.let { Text(it, style = secondary, color = palette.onWallpaperMuted, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-    detail.body?.let { Text(it, style = secondary, color = palette.onWallpaperMuted, maxLines = EXPANDED_LINES, overflow = TextOverflow.Ellipsis) }
-    detail.messages.forEach { MessageRow(it) }
+    val secondary = SlateText.hint.copy(fontSize = 14.sp, lineHeight = 20.sp, shadow = null)
+    detail.body?.let {
+        Text(it, style = secondary, color = palette.onWallpaperMuted, maxLines = EXPANDED_LINES, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
+    }
+    if (detail.messages.isNotEmpty()) {
+        Column(Modifier.padding(top = 8.dp)) { detail.messages.forEach { MessageRow(it) } }
+    }
     detail.picture?.let { picture ->
         Image(
             picture,
             contentDescription = null,
-            contentScale = ContentScale.FillWidth,
-            modifier = Modifier.padding(top = 8.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)),
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.padding(top = 16.dp).fillMaxWidth().heightIn(min = 50.dp, max = 300.dp).clip(RoundedCornerShape(16.dp)),
         )
     }
     val reply = detail.reply
     if (detail.actions.isNotEmpty() || reply?.choices?.isNotEmpty() == true) {
-        FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             detail.actions.forEach { action -> Chip(action.title, outlined = false) { onAction(action) } }
             reply?.choices?.forEach { choice -> Chip(choice, outlined = true) { onSmartReply(reply, choice) } }
         }
     }
 }
 
+/** One line of a conversation: who, on their own avatar or initial, then what they said. */
 @Composable
 private fun MessageRow(message: NotificationMessage) {
     val palette = LocalSlatePalette.current
-    val secondary = SlateText.hint.copy(fontSize = 14.sp, shadow = null)
-    Row(Modifier.padding(vertical = 4.dp)) {
+    val secondary = SlateText.hint.copy(fontSize = 14.sp, lineHeight = 20.sp, shadow = null)
+    Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
         val avatar = message.avatar
         if (avatar != null) {
-            Image(avatar, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.padding(end = 8.dp).size(AvatarSize).clip(CircleShape))
+            Image(avatar, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(IconSize).padding(2.dp).clip(CircleShape))
+        } else {
+            Box(Modifier.size(IconSize).padding(2.dp).background(palette.panelRaised, CircleShape), contentAlignment = Alignment.Center) {
+                Text(
+                    message.sender?.trim()?.take(1)?.uppercase().orEmpty(),
+                    style = secondary.copy(fontWeight = FontWeight.SemiBold),
+                    color = palette.onWallpaper,
+                    modifier = Modifier.clearAndSetSemantics {},
+                )
+            }
         }
-        Column {
+        Spacer(Modifier.width(IconGap))
+        Column(Modifier.weight(1f)) {
             message.sender?.let {
-                Text(it, style = secondary.copy(fontWeight = FontWeight.Medium), color = palette.onWallpaper, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(it, style = secondary.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold), color = palette.onWallpaper, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Text(message.text, style = secondary, color = palette.onWallpaperMuted)
         }

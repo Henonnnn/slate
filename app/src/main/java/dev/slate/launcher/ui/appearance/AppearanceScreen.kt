@@ -1,5 +1,9 @@
 package dev.slate.launcher.ui.appearance
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.animateColorAsState
@@ -149,12 +153,12 @@ fun AppearanceScreen(
         androidx.compose.runtime.CompositionLocalProvider(LocalIconAppearance provides previewIcons) {
             PanelBackdrop(modifier = backModifier) {
                 ScreenTitle(stringResource(R.string.appearance), onClose)
-                LazyColumn(Modifier.weight(1f)) {
-                    item(key = "preview") {
-                        Column(Modifier.padding(vertical = 8.dp)) {
-                            sample.take(3).forEach { AppRow(entry = it, onClick = { _, _ -> }, onLongClick = null) }
-                        }
+                PreviewWindow {
+                    Column(Modifier.padding(vertical = 10.dp)) {
+                        sample.take(3).forEach { AppRow(entry = it, onClick = { _, _ -> }, onLongClick = null) }
                     }
+                }
+                LazyColumn(Modifier.weight(1f)) {
                     section("presets", R.string.appearance_presets) {
                         ChipRow {
                             Presets.all.forEach { p ->
@@ -285,18 +289,51 @@ fun AppearanceScreen(
 }
 
 /**
- * Behind every settings-style screen. Screens that preview something over the wallpaper keep it
- * showing, with a floor of darkness for legibility; [solid] ones stand on the accent's own dark ground.
+ * Behind every settings-style screen: the accent's own dark ground, hiding the home screen. A
+ * screen that previews something shows it in a [PreviewWindow], cut through this ground to the
+ * wallpaper. [solid] is kept for callers; every screen is solid now.
  */
 @Composable
-internal fun PanelBackdrop(modifier: Modifier = Modifier, solid: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+internal fun PanelBackdrop(modifier: Modifier = Modifier, @Suppress("UNUSED_PARAMETER") solid: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
     val palette = LocalSlatePalette.current
-    Box(modifier.fillMaxSize().background(palette.scrim)) {
-        Box(Modifier.fillMaxSize().background(if (solid) palette.ground else Color.Black.copy(alpha = 0.45f)))
-        // These screens bring their own dark ground, so their text is light whatever the wallpaper's is.
-        CompositionLocalProvider(LocalFlatRows provides solid, LocalSlatePalette provides remember(palette) { palette.onDark() }) {
+    // One offscreen layer for the whole screen, so a preview window can clear its own patch of it.
+    Box(modifier.fillMaxSize().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.background(palette.ground)) {
+        // These screens stand on a dark ground, so their text is light whatever the wallpaper's is.
+        CompositionLocalProvider(
+            LocalFlatRows provides true,
+            LocalWallpaperPalette provides palette,
+            LocalSlatePalette provides remember(palette) { palette.onDark() },
+        ) {
             Column(Modifier.fillMaxSize().safeDrawingPadding()) { content() }
         }
+    }
+}
+
+/** The palette as the home screen wears it, for previews inside a settings screen. */
+private val LocalWallpaperPalette = staticCompositionLocalOf<dev.slate.launcher.ui.theme.SlatePalette?> { null }
+
+private val WindowShape = 28.dp
+
+/**
+ * A framed view of the real wallpaper, with [content] drawn on it exactly as on the home screen:
+ * same wallpaper, same dimming, same text colour. It's a hole cut in the screen's ground, not a
+ * see-through screen, so everything around it stays easy to read.
+ */
+@Composable
+internal fun PreviewWindow(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val wallpaperPalette = LocalWallpaperPalette.current ?: LocalSlatePalette.current
+    Box(
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .drawBehind {
+                val corner = CornerRadius(WindowShape.toPx())
+                drawRoundRect(Color.Black, cornerRadius = corner, blendMode = BlendMode.Clear)
+                drawRoundRect(wallpaperPalette.scrim, cornerRadius = corner)
+            }
+            .clip(RoundedCornerShape(WindowShape)),
+    ) {
+        CompositionLocalProvider(LocalSlatePalette provides wallpaperPalette) { content() }
     }
 }
 
@@ -333,7 +370,7 @@ private val GroupShape = RoundedCornerShape(26.dp)
 private val PieceShape = RoundedCornerShape(6.dp)
 private val PieceGap = 2.dp
 
-/** True on a solid ground; over the wallpaper the cards are a little see-through so the preview stays in sight. */
+/** Set inside a [PanelBackdrop]. */
 private val LocalFlatRows = staticCompositionLocalOf { false }
 
 /**
@@ -343,7 +380,7 @@ private val LocalFlatRows = staticCompositionLocalOf { false }
 @Composable
 private fun Modifier.piece(): Modifier {
     val palette = LocalSlatePalette.current
-    return fillMaxWidth().clip(PieceShape).background(if (LocalFlatRows.current) palette.groundRaised else palette.groundRaised.copy(alpha = 0.88f))
+    return fillMaxWidth().clip(PieceShape).background(palette.groundRaised)
 }
 
 /** A card of rows with an optional label above it. */

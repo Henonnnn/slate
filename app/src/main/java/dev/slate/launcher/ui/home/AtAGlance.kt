@@ -1,5 +1,9 @@
 package dev.slate.launcher.ui.home
 
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import android.widget.Toast
+import dev.slate.launcher.widgets.WeatherApps
 import androidx.compose.foundation.layout.Box
 import androidx.compose.animation.core.MutableTransitionState
 import android.content.BroadcastReceiver
@@ -90,7 +94,7 @@ fun GlanceDetails(clock: ClockSettings, place: WeatherPlace?, textStyle: TextSty
     if (clock.showWeather && place != null) {
         var tick by remember { mutableIntStateOf(0) }
         LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { tick++ }
-        LaunchedEffect(place, tick) { repository.refresh(place.latitude, place.longitude, place.name) }
+        LaunchedEffect(place, tick, clock.fahrenheit) { repository.refresh(place.latitude, place.longitude, place.name) }
     }
     val battery by produceState<BatteryLevel?>(null, clock.showBattery) {
         if (clock.showBattery) batteryLevel(context).collect { value = it } else value = null
@@ -98,8 +102,18 @@ fun GlanceDetails(clock: ClockSettings, place: WeatherPlace?, textStyle: TextSty
     if (weather != null) {
         Spacer(Modifier.width(14.dp))
         SlateIconView(weatherIcon(weather), palette.onWallpaperMuted, Modifier.padding(end = 6.dp), size = 18.dp)
-        val unit = if (weather.fahrenheit) "°F" else "°"
-        Text("${weather.temperature.roundToInt()}$unit", style = textStyle, color = palette.onWallpaperMuted, maxLines = 1)
+        val unit = if (weather.fahrenheit) "°F" else "°C"
+        val scope = rememberCoroutineScope()
+        val noApp = stringResource(R.string.weather_no_app)
+        // The temperature is the way into the weather app.
+        val open = if (interactive) {
+            Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+                scope.launch { if (!WeatherApps.open(context, clock.weatherApp)) Toast.makeText(context, noApp, Toast.LENGTH_SHORT).show() }
+            }
+        } else {
+            Modifier
+        }
+        Text("${weather.temperature.roundToInt()}$unit", style = textStyle, color = palette.onWallpaperMuted, maxLines = 1, modifier = open)
     }
     battery?.let { level ->
         Spacer(Modifier.width(14.dp))

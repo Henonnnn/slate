@@ -110,6 +110,11 @@
     <string name="calendar_tomorrow">Tomorrow</string>
     <string name="calendar_all_day">All day</string>
     <string name="calendar_untitled">Untitled event</string>
+    <string name="weather_unit">Temperature unit</string>
+    <string name="weather_app">Weather app</string>
+    <string name="weather_app_summary">Opens when you tap the temperature</string>
+    <string name="weather_app_auto">Automatic</string>
+    <string name="weather_no_app">No weather app found. Choose one in Clock settings.</string>
     <string name="agenda_title">Upcoming</string>
     <string name="agenda_empty">Nothing in the next week</string>
     <string name="agenda_new_event">New event</string>

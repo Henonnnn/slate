@@ -72,7 +72,6 @@ object WeatherCodes {
         else -> R.string.weather_unknown
     }
 
-    /** Countries that use Fahrenheit day to day. */
     enum class Sky { Clear, Cloudy, Rain, Snow }
 
     /** The WMO code reduced to what a small glyph can show. */
@@ -83,5 +82,6 @@ object WeatherCodes {
         else -> Sky.Rain
     }
 
+    /** Countries that use Fahrenheit day to day. Only a hint: the unit is the user's choice, Celsius by default. */
     fun usesFahrenheit(locale: Locale): Boolean = locale.country in setOf("US", "LR", "MM", "BS", "BZ", "KY", "PW")
 }

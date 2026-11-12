@@ -1,5 +1,7 @@
 package dev.slate.launcher.ui.appearance
 
+import androidx.compose.runtime.produceState
+import dev.slate.launcher.widgets.WeatherApps
 import dev.slate.launcher.ui.components.backProgress
 import dev.slate.launcher.ui.components.rememberBackProgress
 import android.Manifest
@@ -100,7 +102,7 @@ fun ClockScreen(
     SlateTheme(theme, wallpaperColor) {
         PanelBackdrop(modifier = backModifier) {
             ScreenTitle(stringResource(R.string.clock_title), onClose)
-            HomeHeader(draft, place, offsetPx = { 0 }, interactive = false)
+            PreviewWindow { Box(Modifier.padding(vertical = 12.dp)) { HomeHeader(draft, place, offsetPx = { 0 }, interactive = false) } }
             LazyColumn(Modifier.weight(1f)) {
                 section("style", R.string.clock_style) {
                     StyleGallery(draft) { commit(draft.copy(style = it)) }
@@ -153,6 +155,17 @@ fun ClockScreen(
                             LinkRow(stringResource(R.string.clock_glance_place), trailing = place.name, icon = SlateIcon.Pin, onClick = onChoosePlace)
                             if (!weather.hasNetworkPermission()) Note(stringResource(R.string.clock_glance_no_network))
                         }
+                        ChoiceRow(stringResource(R.string.weather_unit), listOf(false, true), draft.fahrenheit, { if (it) "°F" else "°C" }, icon = SlateIcon.Sun) { commit(draft.copy(fahrenheit = it)) }
+                        val weatherApps by produceState(emptyList<Pair<String, String>>()) { value = WeatherApps.candidates(context) }
+                        val automatic = stringResource(R.string.weather_app_auto)
+                        ChoiceRow(
+                            stringResource(R.string.weather_app),
+                            listOf<String?>(null) + weatherApps.map { it.first },
+                            draft.weatherApp,
+                            { pkg -> weatherApps.firstOrNull { it.first == pkg }?.second ?: pkg ?: automatic },
+                            icon = SlateIcon.OpenExternal,
+                            summary = stringResource(R.string.weather_app_summary),
+                        ) { commit(draft.copy(weatherApp = it)) }
                     }
                     ToggleRow(stringResource(R.string.clock_glance_events), draft.showEvents, stringResource(R.string.clock_glance_events_summary), SlateIcon.Calendar) { commit(draft.copy(showEvents = it)) }
                     if (draft.showEvents && !calendarGranted) {
