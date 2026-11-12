@@ -12,11 +12,19 @@ Kotlin and Jetpack Compose (Material 3), one module, Android 11 and later (minSd
 
 ## Install
 
-Download the APK from the [Releases](../../releases) page and open it on your phone (you may have to
-allow your browser or file manager to install apps). Then choose Slate as your home app when Android
-asks, or in *Settings → Apps → Default apps → Home app*.
+[<img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="56">](https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/Henonnnn/slate)
 
-Updates install over the previous version: every release is signed with the same key.
+**With Obtainium (recommended).** [Obtainium](https://obtainium.imranr.dev) installs apps straight from
+their releases page and tells you when there's a new one. Tap the button above on your phone, or in
+Obtainium choose *Add app* and paste `https://github.com/Henonnnn/slate`.
+
+**By hand.** Download the APK from the [Releases](../../releases) page and open it on your phone (you
+may have to allow your browser or file manager to install apps). You'll have to come back here for
+updates.
+
+Either way, choose Slate as your home app when Android asks, or in
+*Settings → Apps → Default apps → Home app*. Updates install over the previous version and keep your
+settings: every release is signed with the same key.
 
 Optional access, each explained in the app when it matters:
 
