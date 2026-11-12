@@ -51,5 +51,6 @@ Save a backup in *Settings → Backup* before switching.
 
 ## Layout of the code
 
-`CLAUDE.md` describes every package and the conventions the code follows. `third_party/fonts/` holds
-the licences of the two bundled fonts (Google Sans Flex and Kumbh Sans, both SIL OFL 1.1).
+One Gradle module, `app/`. The code is under `app/src/main/java/dev/slate/launcher/`, one package per
+area (`apps`, `notifications`, `floating` for The Pill, `ui/...`). `third_party/fonts/` holds the
+licences of the two bundled fonts (Google Sans Flex and Kumbh Sans, both SIL OFL 1.1).
