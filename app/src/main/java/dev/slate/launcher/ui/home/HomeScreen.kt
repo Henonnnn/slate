@@ -1,5 +1,11 @@
 package dev.slate.launcher.ui.home
 
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.runtime.key
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.scaleIn
 import android.app.ActivityOptions
 import android.content.Intent
 import android.view.HapticFeedbackConstants
@@ -167,6 +173,7 @@ private const val FAV = "fav:"
 private const val ALL = "all:"
 private const val HID = "hid:"
 private const val PRI = "pri:"
+private const val HOME_ALL = "hall:"
 private const val FOL = "fol:"
 private const val HUB = "hub"
 
@@ -491,6 +498,10 @@ fun HomeScreen(
     }
 
     var scrubbing by remember { mutableStateOf(false) }
+    var hiddenPill by remember { mutableStateOf(emptySet<String>()) }
+    // The letter under the finger: while it's held, only that letter's apps show, as in Niagara.
+    var scrubLetter by remember { mutableStateOf<Char?>(null) }
+    val scrubFade by animateFloatAsState(if (scrubbing && scrubLetter != null) 1f else 0f, tween(120), label = "scrubFade")
     // All apps closes by itself once it's left alone. A pop-up or sheet open on a row counts as
     // in use, or the row would vanish under it.
     LaunchedEffect(allApps, state.behaviour.allAppsCloseSeconds) {
@@ -571,6 +582,7 @@ fun HomeScreen(
             if (end == null && start == null) null else RowSwipe(end, start)
         }
         val searchLabel = stringResource(R.string.search)
+        val showPillLabel = stringResource(R.string.floating_show)
         // Search must stay reachable, so the button can only go if the pull gesture is on.
         val showSearchButton = state.behaviour.showSearchButton || !state.behaviour.pullDownToSearch
         val twoPane = !editing && wideWindow
@@ -600,7 +612,7 @@ fun HomeScreen(
 
         fun LazyListScope.topItems() {
             item(key = "header", contentType = "header") {
-                HomeHeader(state.clock, state.weatherPlace, homeOffsetPx, onSearch = openSearch.takeIf { showSearchButton }, onLongPress = { homeMenu = true })
+                HomeHeader(state.clock, state.weatherPlace, homeOffsetPx, onLongPress = { homeMenu = true })
             }
             items(state.widgets, key = { "widget:" + it.key }, contentType = { "widget" }) { stack ->
                 val preview = heightPreview?.takeIf { (key, _) -> stack.items.any { it.key == key } }?.second
@@ -635,6 +647,16 @@ fun HomeScreen(
             }
             items(state.favourites, key = { FAV + it.key }, contentType = { "app" }) { entry ->
                 ListRow(entry, rowSwipe, showPreview = true, Modifier.animateItem())
+            }
+            // Optionally the list carries on into every app, so they're a scroll away as well as a letter away.
+            if (!twoPane && state.behaviour.scrollToAllApps) {
+                sectionLabel("home-all-apps", R.string.all_apps)
+                items(state.folders, key = { HOME_ALL + it.key }, contentType = { "app" }) { entry ->
+                    ListRow(entry, null, showPreview = false, Modifier.animateItem())
+                }
+                items(state.apps, key = { HOME_ALL + it.key }, contentType = { "app" }) { entry ->
+                    ListRow(entry, rowSwipe, showPreview = false, Modifier.animateItem())
+                }
             }
         }
 
@@ -675,7 +697,10 @@ fun HomeScreen(
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
             .nestedScroll(pull.connection)
             .nestedScroll(rubber.connection)
-            .graphicsLayer { translationY = pull.distance + rubber.shown }
+            .graphicsLayer {
+                translationY = pull.distance + rubber.shown
+                alpha = 1f - scrubFade
+            }
             .semantics {
                 customActions = listOf(
                     CustomAccessibilityAction(searchLabel) { openSearch(); true },
@@ -773,8 +798,12 @@ fun HomeScreen(
                         folders = state.folders.isNotEmpty(),
                     )
                 },
-                onActiveChange = { scrubbing = it },
+                onActiveChange = {
+                    scrubbing = it
+                    if (!it) scrubLetter = null
+                },
                 onSection = { section ->
+                    scrubLetter = (section as? AlphabetSection.Letter)?.char
                     if (section == AlphabetSection.Favourites) {
                         allApps = false
                     } else {
@@ -793,10 +822,84 @@ fun HomeScreen(
             )
         }
 
+        // While a letter is held: its apps alone, level with the alphabet.
+        val letter = scrubLetter
+        if (scrubFade > 0f && letter != null) {
+            val apps = remember(letter, state.apps) { state.apps.filter { it.bucket == letter } }
+            Column(
+                Modifier
+                    .align(Alignment.CenterStart)
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .graphicsLayer { alpha = scrubFade }
+                    .clearAndSetSemantics {},
+            ) {
+                Text(
+                    letter.toString(),
+                    style = SlateText.appLabel.copy(fontWeight = FontWeight.SemiBold),
+                    color = palette.onWallpaper,
+                    modifier = Modifier.padding(start = 44.dp, bottom = 6.dp),
+                )
+                // Keyed, so a row never shows the previous letter's icon while its own loads.
+                apps.take(MAX_SCRUB_ROWS).forEach { key(it.key) { AppRow(entry = it, onClick = { _, _ -> }, onLongClick = null) } }
+            }
+        }
+
+        // The Pill swiped away to the left stays away, activity by activity, until it's pulled back out of
+        // the search button with a swipe to the right. Anything new shows by itself.
+        val pillItems = remember(floating.items, hiddenPill) { floating.items.filter { it.key !in hiddenPill } }
+        val pillWaiting = pillItems.size < floating.items.size
+        // Without the search button there'd be no way back, so then leaving home brings it back.
+        LifecycleEventEffect(Lifecycle.Event.ON_STOP) { if (!showSearchButton) hiddenPill = emptySet() }
+
+        // Search floats at the bottom corner on home and in all apps alike, as Niagara's does: the faint
+        // glyph that used to sit beside the clock was easy to miss and gone as soon as the list moved.
+        AnimatedVisibility(
+            visible = !scrubbing && !editing && !searching && !moving && !covered && popupOwner == null && showSearchButton,
+            enter = fadeIn(tween(160)) + scaleIn(spring(dampingRatio = 0.6f, stiffness = 500f), initialScale = 0.6f),
+            exit = fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.6f),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 60.dp, bottom = insets.calculateBottomPadding() + 28.dp + if (pillItems.isNotEmpty()) FloatingButtonSpace else 0.dp),
+        ) {
+            Box(
+                Modifier
+                    .size(56.dp)
+                    .graphicsLayer {
+                        shadowElevation = 6.dp.toPx()
+                        shape = CircleShape
+                        clip = true
+                    }
+                    .background(palette.accent)
+                    .pointerInput(pillWaiting) {
+                        if (!pillWaiting) return@pointerInput
+                        var pulled = 0f
+                        detectHorizontalDragGestures(onDragStart = { pulled = 0f }) { _, amount ->
+                            pulled += amount
+                            if (pulled > PILL_RETURN_PULL.toPx()) {
+                                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                hiddenPill = emptySet()
+                            }
+                        }
+                    }
+                    .clickable(role = Role.Button, onClickLabel = searchLabel, onClick = openSearch)
+                    .semantics {
+                        contentDescription = searchLabel
+                        if (pillWaiting) customActions = listOf(CustomAccessibilityAction(showPillLabel) { hiddenPill = emptySet(); true })
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                SlateIconView(SlateIcon.Search, palette.panel, size = 26.dp)
+                // A mark at its edge while The Pill is tucked away behind it.
+                if (pillWaiting) Box(Modifier.align(Alignment.CenterEnd).padding(end = 5.dp).size(width = 3.dp, height = 16.dp).background(palette.panel, CircleShape))
+            }
+        }
+
         // Last, so the card it grows into covers the alphabet.
         FloatingButton(
-            items = if (!editing && !searching && !moving && popupOwner == null) floating.items else emptyList(),
+            items = if (!editing && !searching && !moving && popupOwner == null) pillItems else emptyList(),
             controls = floating.controls,
+            onHide = { hiddenPill = floating.items.mapTo(HashSet()) { it.key } },
             options = state.floating,
             bottomPadding = insets.calculateBottomPadding() + 12.dp,
         )
@@ -1344,6 +1447,8 @@ private fun Modifier.fadeAtEdges(top: Dp, bottom: Dp): Modifier =
 
 private val EdgeFadeTaper = 32.dp
 private const val HUB_VEIL = 0.63f
+private const val MAX_SCRUB_ROWS = 9
+private val PILL_RETURN_PULL = 24.dp
 private val PopupDim = Color(0x73000000)
 private const val MOVE_STEP = 0.05f
 

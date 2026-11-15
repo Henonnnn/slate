@@ -69,13 +69,16 @@ object Accent {
 
     /**
      * The ground of settings screens and what sits on it, in three steps (0 the ground, 1 a card,
-     * 2 a control on a card): the accent's hue, kept dark so every accent reads on it.
+     * 2 a control on a card): the accent's hue, dark or, with [light], pale, following the phone's theme.
      */
-    fun ground(argb: Int, level: Int): Int = when (level) {
-        0 -> shade(argb, 0.3f, 0.062f)
-        1 -> shade(argb, 0.24f, 0.118f)
-        else -> shade(argb, 0.22f, 0.185f)
+    fun ground(argb: Int, level: Int, light: Boolean = false): Int = when (level) {
+        0 -> if (light) shade(argb, 0.35f, 0.945f) else shade(argb, 0.3f, 0.062f)
+        1 -> if (light) shade(argb, 0.5f, 0.99f) else shade(argb, 0.24f, 0.118f)
+        else -> if (light) shade(argb, 0.3f, 0.895f) else shade(argb, 0.22f, 0.185f)
     }
+
+    /** Text on a light [ground]: almost black, with a breath of the accent. */
+    fun onLightGround(argb: Int): Int = shade(argb, 0.4f, 0.1f)
 
     private fun shade(argb: Int, saturation: Float, lightness: Float): Int {
         val (h, s, _) = toHsl(argb)
@@ -85,7 +88,7 @@ object Accent {
     /** The hue of a colour, in degrees. */
     fun toHue(argb: Int): Float = toHsl(argb).first
 
-    internal fun toHsl(argb: Int): Triple<Float, Float, Float> {
+    fun toHsl(argb: Int): Triple<Float, Float, Float> {
         val r = (argb shr 16 and 0xFF) / 255f
         val g = (argb shr 8 and 0xFF) / 255f
         val b = (argb and 0xFF) / 255f

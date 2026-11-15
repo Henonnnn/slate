@@ -48,7 +48,15 @@ data class SlatePalette(
     val ground: Color,
     val groundRaised: Color,
     val groundHigh: Color,
+    /** The phone is in its light theme, so settings stand on a pale ground with dark text. */
+    val groundLight: Boolean = false,
+    /** The accent deepened to read on a pale ground. */
+    val groundAccent: Color = accent,
+    val onGround: Color = onWallpaper,
 ) {
+    /** For settings screens, which follow the phone's light or dark theme whatever the wallpaper's text colour is. */
+    fun onGround(): SlatePalette = copy(onWallpaper = onGround, onWallpaperMuted = onGround.copy(alpha = if (groundLight) 0.68f else 0.6f), accent = groundAccent)
+
     /** For content drawn on [panel]: the same palette with the panel's text colours. */
     fun onPanel(): SlatePalette = copy(onWallpaper = onPanel, onWallpaperMuted = onPanel.copy(alpha = 0.7f), accent = panelAccent)
 
@@ -56,7 +64,7 @@ data class SlatePalette(
     fun onDark(): SlatePalette = copy(onWallpaper = Paper, onWallpaperMuted = Paper.copy(alpha = 0.6f))
 }
 
-private fun palette(accent: Color, dimming: Float, tone: PanelTone = PanelTone.Dark, darkText: Boolean = false) = SlatePalette(
+private fun palette(accent: Color, dimming: Float, tone: PanelTone = PanelTone.Dark, darkText: Boolean = false, lightGround: Boolean = false) = SlatePalette(
     onWallpaper = if (darkText) Ink else Paper,
     onWallpaperMuted = (if (darkText) Ink else Paper).copy(alpha = if (darkText) 0.7f else 0.6f),
     scrim = Color.Black.copy(alpha = dimming.coerceIn(0f, 1f)),
@@ -66,9 +74,12 @@ private fun palette(accent: Color, dimming: Float, tone: PanelTone = PanelTone.D
     panelRaised = Color(Accent.panelRaised(accent.toArgb(), tone)),
     onPanel = Color(Accent.onPanel(accent.toArgb(), tone)),
     panelAccent = if (tone == PanelTone.Light) Color(Accent.deep(accent.toArgb())) else accent,
-    ground = Color(Accent.ground(accent.toArgb(), 0)),
-    groundRaised = Color(Accent.ground(accent.toArgb(), 1)),
-    groundHigh = Color(Accent.ground(accent.toArgb(), 2)),
+    ground = Color(Accent.ground(accent.toArgb(), 0, lightGround)),
+    groundRaised = Color(Accent.ground(accent.toArgb(), 1, lightGround)),
+    groundHigh = Color(Accent.ground(accent.toArgb(), 2, lightGround)),
+    groundLight = lightGround,
+    groundAccent = if (lightGround) Color(Accent.deep(accent.toArgb())) else accent,
+    onGround = if (lightGround) Color(Accent.onLightGround(accent.toArgb())) else Paper,
 )
 
 val LocalSlatePalette = staticCompositionLocalOf { palette(Color(Accent.EMBER), ThemeSettings().dimming) }
@@ -99,7 +110,7 @@ fun SlateTheme(
         TextTone.Dark -> true
         TextTone.Auto -> wallpaperDarkText
     }
-    val slatePalette = remember(accentArgb, theme.dimming, tone, darkText) { palette(Color(accentArgb), theme.dimming, tone, darkText) }
+    val slatePalette = remember(accentArgb, theme.dimming, tone, darkText, darkTheme) { palette(Color(accentArgb), theme.dimming, tone, darkText, lightGround = !darkTheme) }
     val text = remember(family, theme.textScale, darkText) {
         SlateTextStyles(family, theme.textScale.coerceIn(ThemeSettings.MIN_SCALE, ThemeSettings.MAX_SCALE), darkText)
     }

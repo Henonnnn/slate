@@ -1,5 +1,7 @@
 package dev.slate.launcher.ui.floating
 
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.Lifecycle
 import androidx.compose.foundation.selection.toggleable
@@ -158,6 +160,7 @@ private val ExpandedMargin = 12.dp
 // The Pill sits near the bottom edge, so there isn't much room to drag.
 private val DismissDistance = 40.dp
 private val ExpandDistance = 18.dp
+private val HideDistance = 72.dp
 private const val UP_RESISTANCE = 0.35f
 private const val DOWN_RESISTANCE = 0.25f
 /** One spring moves everything that changes shape, so the parts stay together. */
@@ -178,6 +181,8 @@ fun FloatingButton(
     options: FloatingSources,
     bottomPadding: Dp,
     modifier: Modifier = Modifier,
+    /** Swiped away to the left: the caller hides these items until it's asked for them back. */
+    onHide: () -> Unit = {},
 ) {
     var expanded by remember { mutableStateOf(false) }
     // Locking the phone or leaving home puts it away: it never waits open behind the lock screen.
@@ -206,13 +211,13 @@ fun FloatingButton(
             exit = fadeOut(tween(160)) + slideOutVertically(tween(200)) { it / 2 } + scaleOut(tween(200), targetScale = 0.8f),
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottomPadding),
         ) {
-            Pill(shown, options, expanded, { expanded = it }, controls)
+            Pill(shown, options, expanded, { expanded = it }, controls, onHide)
         }
     }
 }
 
 @Composable
-private fun Pill(items: List<FloatingItem>, options: FloatingSources, expanded: Boolean, onExpanded: (Boolean) -> Unit, controls: PillControls) {
+private fun Pill(items: List<FloatingItem>, options: FloatingSources, expanded: Boolean, onExpanded: (Boolean) -> Unit, controls: PillControls, onHide: () -> Unit) {
     val primary = items.firstOrNull() ?: return
     val secondary = items.getOrNull(1)
     val wallpaperPalette = LocalSlatePalette.current
@@ -225,6 +230,12 @@ private fun Pill(items: List<FloatingItem>, options: FloatingSources, expanded: 
     // Plain state while the finger moves: nothing queued can land after the release and fight the settle.
     var drag by remember { mutableFloatStateOf(0f) }
     var settle by remember { mutableStateOf<Job?>(null) }
+    // Sideways: the whole pill slides off to the left and out of the way.
+    var slide by remember { mutableFloatStateOf(0f) }
+    var slideSettle by remember { mutableStateOf<Job?>(null) }
+    val hidePx = with(density) { HideDistance.toPx() }
+    var size by remember { mutableStateOf(IntSize(1000, 0)) }
+    val hideLabel = stringResource(R.string.floating_hide)
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val pressScale by animateFloatAsState(if (pressed && !expanded) 0.96f else 1f, spring(dampingRatio = 0.6f, stiffness = 600f), label = "pillPress")
@@ -241,7 +252,14 @@ private fun Pill(items: List<FloatingItem>, options: FloatingSources, expanded: 
 
     CompositionLocalProvider(LocalSlatePalette provides palette) {
         Row(
-            Modifier.widthIn(max = 460.dp).fillMaxWidth().padding(horizontal = margin),
+            Modifier
+                .widthIn(max = 460.dp)
+                .fillMaxWidth()
+                .graphicsLayer {
+                    translationX = slide
+                    alpha = 1f - (-slide / (hidePx * 3f)).coerceIn(0f, 0.85f)
+                }
+                .padding(horizontal = margin),
             verticalAlignment = Alignment.Bottom,
         ) {
             Box(
@@ -263,7 +281,10 @@ private fun Pill(items: List<FloatingItem>, options: FloatingSources, expanded: 
                     .background(palette.panel)
                     .semantics {
                         if (expanded) stateDescription = expandedState
-                        customActions = listOf(CustomAccessibilityAction(dismissLabel) { controls.dismiss(primary); true })
+                        customActions = listOf(
+                            CustomAccessibilityAction(dismissLabel) { controls.dismiss(primary); true },
+                            CustomAccessibilityAction(hideLabel) { onHide(); true },
+                        )
                     }
                     .draggable(
                         state = rememberDraggableState { delta -> drag += delta },
@@ -290,6 +311,28 @@ private fun Pill(items: List<FloatingItem>, options: FloatingSources, expanded: 
                             }
                         },
                     )
+                    .draggable(
+                        enabled = !expanded,
+                        // Only leftwards; a pull to the right just resists.
+                        state = rememberDraggableState { delta -> slide = (slide + delta).coerceAtMost(0f) },
+                        orientation = Orientation.Horizontal,
+                        onDragStarted = { slideSettle?.cancel() },
+                        onDragStopped = { velocity ->
+                            if (slide < -hidePx || velocity < -FLING) {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                slideSettle = scope.launch {
+                                    animate(slide, -size.width.toFloat() * 1.2f, animationSpec = tween(160)) { v, _ -> slide = v }
+                                    onHide()
+                                    slide = 0f
+                                }
+                            } else {
+                                slideSettle = scope.launch {
+                                    animate(slide, 0f, animationSpec = spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMediumLow)) { v, _ -> slide = v }
+                                }
+                            }
+                        },
+                    )
+                    .onSizeChanged { size = it }
                     .clickable(interactionSource = source, indication = null, role = Role.Button, onClickLabel = expandLabel.takeIf { !expanded }) {
                         when {
                             expanded -> Unit

@@ -23,6 +23,8 @@
 
     <!-- Lets the default home app see the private space (normal permission; Android 15+). -->
     <uses-permission android:name="android.permission.ACCESS_HIDDEN_PROFILES" />
+    <!-- Setting the wallpaper that goes with a look, only when the user asks for it. -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
     <!-- Reading whether Bluetooth is on needed this up to Android 11; later versions need nothing. -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
 

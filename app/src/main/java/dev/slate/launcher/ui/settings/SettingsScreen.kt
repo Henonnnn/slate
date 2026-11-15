@@ -215,6 +215,7 @@ fun SettingsScreen(
                                     ToggleRow(stringResource(R.string.settings_search_button), behaviour.showSearchButton, stringResource(R.string.settings_search_button_summary), SlateIcon.Search) { onBehaviour(behaviour.copy(showSearchButton = it)) }
                                 }
                                 ChoiceRow(stringResource(R.string.settings_all_apps_close), listOf(0, 3, 5, 10, 30), behaviour.allAppsCloseSeconds, { secondsLabel(it) }, icon = SlateIcon.Clock, summary = stringResource(R.string.settings_all_apps_close_summary)) { onBehaviour(behaviour.copy(allAppsCloseSeconds = it)) }
+                                ToggleRow(stringResource(R.string.settings_scroll_all_apps), behaviour.scrollToAllApps, stringResource(R.string.settings_scroll_all_apps_summary), SlateIcon.PullDown) { onBehaviour(behaviour.copy(scrollToAllApps = it)) }
                                 ToggleRow(stringResource(R.string.settings_hide_status_bar), behaviour.hideStatusBar, stringResource(R.string.settings_hide_status_bar_summary), SlateIcon.Eye) { onBehaviour(behaviour.copy(hideStatusBar = it)) }
                             }
                             section("apps", R.string.settings_home_apps) {
@@ -356,7 +357,8 @@ private fun SettingsPage(title: String, subtitle: String?, showMark: Boolean, ba
         LazyColumn(Modifier.weight(1f), state = list) {
             item(key = "title") {
                 Column(Modifier.fillMaxWidth().padding(start = 32.dp, end = 32.dp, top = 20.dp, bottom = 4.dp)) {
-                    if (showMark) {
+                    // The mark is drawn in light strokes, so it only shows on the dark ground.
+                    if (showMark && !palette.groundLight) {
                         Image(painterResource(R.drawable.ic_launcher_foreground), contentDescription = null, modifier = Modifier.size(72.dp).offset(x = (-14).dp))
                     }
                     Text(
@@ -384,8 +386,13 @@ private fun SettingsPage(title: String, subtitle: String?, showMark: Boolean, ba
 /** A colour of its own for each topic on the hub, spread round the wheel from the accent. */
 @Composable
 private fun hubTint(index: Int): Color {
-    val accent = LocalSlatePalette.current.accent
-    return remember(accent, index) { Color(Accent.custom(Accent.toHue(accent.toArgb()) + index * 47f)) }
+    val palette = LocalSlatePalette.current
+    val accent = palette.accent
+    val light = palette.groundLight
+    return remember(accent, index, light) {
+        val tint = Accent.custom(Accent.toHue(accent.toArgb()) + index * 47f)
+        Color(if (light) Accent.deep(tint) else tint)
+    }
 }
 
 @Composable

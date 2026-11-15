@@ -1,5 +1,16 @@
 package dev.slate.launcher.ui.appearance
 
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import android.widget.Toast
+import dev.slate.launcher.ui.theme.WallpaperArt
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.runtime.DisposableEffect
+import androidx.core.view.WindowCompat
+import android.app.Activity
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.BlendMode
@@ -162,7 +173,23 @@ fun AppearanceScreen(
                     section("presets", R.string.appearance_presets) {
                         ChipRow {
                             Presets.all.forEach { p ->
-                                Chip(presetLabel(p.id), selected = draft.preset == p.id) { onPreset(p.id) }
+                                PresetCard(p, presetLabel(p.id), selected = draft.preset == p.id) { onPreset(p.id) }
+                            }
+                        }
+                        // A look's wallpaper is offered, never set by itself: it replaces the user's own.
+                        Presets.all.firstOrNull { it.id == draft.preset }?.let { worn ->
+                            val scope = rememberCoroutineScope()
+                            val done = stringResource(R.string.appearance_wallpaper_set)
+                            val failed = stringResource(R.string.appearance_wallpaper_failed)
+                            LinkRow(
+                                stringResource(R.string.appearance_use_wallpaper),
+                                summary = stringResource(R.string.appearance_use_wallpaper_summary),
+                                icon = SlateIcon.Droplet,
+                            ) {
+                                scope.launch {
+                                    val ok = WallpaperArt.apply(context, worn.wallpaper)
+                                    Toast.makeText(context, if (ok) done else failed, Toast.LENGTH_SHORT).show()
+                                }
                             }
                         }
                     }
@@ -289,7 +316,7 @@ fun AppearanceScreen(
 }
 
 /**
- * Behind every settings-style screen: the accent's own dark ground, hiding the home screen. A
+ * Behind every settings-style screen: the accent's own ground, dark or pale with the phone's theme, hiding the home screen. A
  * screen that previews something shows it in a [PreviewWindow], cut through this ground to the
  * wallpaper. [solid] is kept for callers; every screen is solid now.
  */
@@ -298,16 +325,33 @@ internal fun PanelBackdrop(modifier: Modifier = Modifier, @Suppress("UNUSED_PARA
     val palette = LocalSlatePalette.current
     // One offscreen layer for the whole screen, so a preview window can clear its own patch of it.
     Box(modifier.fillMaxSize().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.background(palette.ground)) {
-        // These screens stand on a dark ground, so their text is light whatever the wallpaper's is.
+        // On a pale ground the status bar's icons have to turn dark, and back again on leaving.
+        val view = LocalView.current
+        DisposableEffect(palette.groundLight) {
+            val window = (view.context as? Activity)?.window
+            val bars = window?.let { WindowCompat.getInsetsController(it, view) }
+            // Counted, not saved and restored: one of these screens opens over another, and the one
+            // underneath leaves after the new one has arrived.
+            if (palette.groundLight) paleScreens++
+            bars?.isAppearanceLightStatusBars = paleScreens > 0
+            onDispose {
+                if (palette.groundLight) paleScreens--
+                bars?.isAppearanceLightStatusBars = paleScreens > 0
+            }
+        }
+        // These screens stand on their own ground, light or dark with the phone, so their text follows it, not the wallpaper.
         CompositionLocalProvider(
             LocalFlatRows provides true,
             LocalWallpaperPalette provides palette,
-            LocalSlatePalette provides remember(palette) { palette.onDark() },
+            LocalSlatePalette provides remember(palette) { palette.onGround() },
         ) {
             Column(Modifier.fillMaxSize().safeDrawingPadding()) { content() }
         }
     }
 }
+
+/** How many pale-ground screens are showing; only touched on the main thread. */
+private var paleScreens = 0
 
 /** The palette as the home screen wears it, for previews inside a settings screen. */
 private val LocalWallpaperPalette = staticCompositionLocalOf<dev.slate.launcher.ui.theme.SlatePalette?> { null }
@@ -631,9 +675,70 @@ internal fun Note(text: String) {
     )
 }
 
+/**
+ * A look in miniature: its wallpaper, the time in its font and accent, and three icons in its
+ * shape, so the choice is made by eye.
+ */
+@Composable
+private fun PresetCard(preset: Presets.Preset, label: String, selected: Boolean, onClick: () -> Unit) {
+    val palette = LocalSlatePalette.current
+    val art = remember(preset.wallpaper) { WallpaperArt.render(preset.wallpaper, 132, 220).asImageBitmap() }
+    val theme = preset.theme
+    val pale = Accent.toHsl(preset.wallpaper.top).third > 0.6f
+    val ink = if (pale) Color(0xFF1B1A17) else Color(0xFFF3EFE7)
+    val accent = Color(Accent.resolve(theme.accent, null, theme.accentHue).let { if (pale) Accent.deep(it) else it })
+    val family = fontFamilyFor(theme.font)
+    val iconShape: Shape = when (theme.iconShape) {
+        IconShape.Circle -> CircleShape
+        IconShape.Squircle -> RoundedCornerShape(38)
+        IconShape.RoundedSquare -> RoundedCornerShape(24)
+        IconShape.System -> RoundedCornerShape(30)
+    }
+    Column(
+        Modifier.selectable(selected, role = Role.RadioButton, onClick = onClick).padding(2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier
+                .size(width = 92.dp, height = 150.dp)
+                .border(3.dp, if (selected) palette.accent else Color.Transparent, RoundedCornerShape(22.dp))
+                .padding(5.dp)
+                .clip(RoundedCornerShape(17.dp))
+                .clearAndSetSemantics {},
+        ) {
+            Image(art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            Column(Modifier.padding(start = 9.dp, top = 22.dp)) {
+                Row {
+                    Text("12", style = TextStyle(fontFamily = family, fontWeight = FontWeight.Bold, fontSize = 22.sp), color = ink)
+                    Text("45", style = TextStyle(fontFamily = family, fontWeight = FontWeight.Bold, fontSize = 22.sp), color = accent)
+                }
+                Spacer(Modifier.height(10.dp))
+                repeat(3) { i ->
+                    Row(Modifier.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (theme.showIcons) {
+                            Box(Modifier.size(13.dp).background(if (theme.iconStyle == IconStyle.Themed) accent else ink.copy(alpha = 0.85f), iconShape))
+                            Spacer(Modifier.width(6.dp))
+                        }
+                        Box(Modifier.size(width = (44 - i * 9).dp, height = 5.dp).background(ink.copy(alpha = 0.7f), CircleShape))
+                    }
+                }
+            }
+        }
+        Text(
+            label,
+            style = SlateText.hint.copy(fontSize = 13.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal, shadow = null),
+            color = if (selected) palette.accent else palette.onWallpaper,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
+}
+
 @Composable
 internal fun presetLabel(id: String): String = stringResource(
     when (id) {
+        "dusk" -> R.string.preset_dusk
+        "ocean" -> R.string.preset_ocean
+        "dawn" -> R.string.preset_dawn
         "paper" -> R.string.preset_paper
         "mono" -> R.string.preset_mono
         "night" -> R.string.preset_night

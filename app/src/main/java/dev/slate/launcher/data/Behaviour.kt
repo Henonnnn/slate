@@ -32,6 +32,8 @@ data class BehaviourSettings(
     /** Touches answer with a tick; off silences every one of Slate's own. */
     val haptics: Boolean = true,
     val hideStatusBar: Boolean = false,
+    /** Scrolling past the favourites carries on into every app; off, only the alphabet opens them (as Niagara). */
+    val scrollToAllApps: Boolean = true,
     /** All apps goes back to home after this long untouched; 0 keeps it open. */
     val allAppsCloseSeconds: Int = 5,
     /** How many of an app's own shortcuts its pop-up lists by itself. */
