@@ -216,6 +216,7 @@ fun SettingsScreen(
                                 }
                                 ChoiceRow(stringResource(R.string.settings_all_apps_close), listOf(0, 3, 5, 10, 30), behaviour.allAppsCloseSeconds, { secondsLabel(it) }, icon = SlateIcon.Clock, summary = stringResource(R.string.settings_all_apps_close_summary)) { onBehaviour(behaviour.copy(allAppsCloseSeconds = it)) }
                                 ToggleRow(stringResource(R.string.settings_scroll_all_apps), behaviour.scrollToAllApps, stringResource(R.string.settings_scroll_all_apps_summary), SlateIcon.PullDown) { onBehaviour(behaviour.copy(scrollToAllApps = it)) }
+                                ToggleRow(stringResource(R.string.settings_letter_headings), behaviour.letterHeadings, stringResource(R.string.settings_letter_headings_summary), SlateIcon.Alphabet) { onBehaviour(behaviour.copy(letterHeadings = it)) }
                                 ToggleRow(stringResource(R.string.settings_hide_status_bar), behaviour.hideStatusBar, stringResource(R.string.settings_hide_status_bar_summary), SlateIcon.Eye) { onBehaviour(behaviour.copy(hideStatusBar = it)) }
                             }
                             section("apps", R.string.settings_home_apps) {

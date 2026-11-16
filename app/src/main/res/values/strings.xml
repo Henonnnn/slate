@@ -168,8 +168,8 @@
     <string name="appearance_show_icons">Show app icons</string>
     <string name="appearance_icon_shape">Icon shape</string>
     <string name="appearance_shape_note">Shapes apply to adaptive icons, which is nearly every app; older icons keep their own outline.</string>
-    <string name="appearance_themed_note">Uses each app\'s monochrome icon in your accent colour. Apps without one keep their normal icon.</string>
-    <string name="appearance_themed_needs_13">Themed icons need Android 13 or newer; apps keep their normal icons here.</string>
+    <string name="appearance_themed_note">Each app\'s one-colour icon in your accent. Apps that ship none get one worked out from their icon.</string>
+    <string name="appearance_tinted_note">Each app\'s own icon, recoloured into shades of your accent.</string>
     <string name="appearance_no_packs">No icon packs installed. Any ADW or Nova compatible icon pack from an app store works.</string>
     <string name="preset_paper">Paper</string>
     <string name="preset_mono">Mono</string>
@@ -180,7 +180,7 @@
     <string name="preset_ocean">Ocean</string>
     <string name="preset_dawn">Dawn</string>
     <string name="appearance_use_wallpaper">Use this look\'s wallpaper</string>
-    <string name="appearance_use_wallpaper_summary">Replaces your home screen wallpaper with the one on the card</string>
+    <string name="appearance_use_wallpaper_summary">Replaces your home screen wallpaper with the picture on the card</string>
     <string name="appearance_wallpaper_set">Wallpaper set</string>
     <string name="appearance_wallpaper_failed">This phone doesn\'t allow changing the wallpaper</string>
     <string name="accent_ember">Ember</string>
@@ -216,6 +216,8 @@
     <string name="appearance_spacing">Space between apps</string>
     <string name="settings_scroll_all_apps">Scroll on to all apps</string>
     <string name="settings_scroll_all_apps_summary">Every app follows the favourites in the same list</string>
+    <string name="settings_letter_headings">Letters in the app list</string>
+    <string name="settings_letter_headings_summary">A letter above each group of apps</string>
     <string name="settings_all_apps_close">Close all apps after</string>
     <string name="settings_all_apps_close_summary">How long the full list stays open untouched</string>
     <string name="settings_popups">Pop-ups</string>
@@ -265,6 +267,8 @@
     <string name="font_mono">Mono</string>
     <string name="icons_system">App icons</string>
     <string name="icons_themed">Themed</string>
+    <string name="icons_glyph">Glyphs</string>
+    <string name="icons_tinted">Tinted</string>
     <string name="icons_pack">Icon pack</string>
     <string name="shape_system">Default</string>
     <string name="shape_circle">Circle</string>

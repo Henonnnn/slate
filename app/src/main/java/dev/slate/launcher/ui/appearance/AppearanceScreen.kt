@@ -25,7 +25,6 @@ import dev.slate.launcher.data.PanelTone
 import dev.slate.launcher.data.SavedTheme
 import dev.slate.launcher.ui.components.backProgress
 import dev.slate.launcher.ui.components.rememberBackProgress
-import android.os.Build
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -187,7 +186,7 @@ fun AppearanceScreen(
                                 icon = SlateIcon.Droplet,
                             ) {
                                 scope.launch {
-                                    val ok = WallpaperArt.apply(context, worn.wallpaper)
+                                    val ok = WallpaperArt.apply(context, worn.id, worn.wallpaper)
                                     Toast.makeText(context, if (ok) done else failed, Toast.LENGTH_SHORT).show()
                                 }
                             }
@@ -279,9 +278,8 @@ fun AppearanceScreen(
                             }
                         }
                         when {
-                            draft.iconStyle == IconStyle.Themed && Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ->
-                                Note(stringResource(R.string.appearance_themed_needs_13))
-                            draft.iconStyle == IconStyle.Themed -> Note(stringResource(R.string.appearance_themed_note))
+                            draft.iconStyle == IconStyle.Themed || draft.iconStyle == IconStyle.Glyph -> Note(stringResource(R.string.appearance_themed_note))
+                            draft.iconStyle == IconStyle.Tinted -> Note(stringResource(R.string.appearance_tinted_note))
                             draft.iconStyle == IconStyle.Pack -> {
                                 val list = packs
                                 if (list != null && list.isEmpty()) {
@@ -682,9 +680,13 @@ internal fun Note(text: String) {
 @Composable
 private fun PresetCard(preset: Presets.Preset, label: String, selected: Boolean, onClick: () -> Unit) {
     val palette = LocalSlatePalette.current
-    val art = remember(preset.wallpaper) { WallpaperArt.render(preset.wallpaper, 132, 220).asImageBitmap() }
+    val context = LocalContext.current
+    // The drawing shows at once; the picture replaces it when it has been read, off the main thread.
+    val drawn = remember(preset.wallpaper) { WallpaperArt.render(preset.wallpaper, 132, 220) }
+    val bitmap by produceState(drawn, preset.id) { value = WallpaperArt.thumbnail(context, preset.id, preset.wallpaper) }
+    val art = remember(bitmap) { bitmap.asImageBitmap() }
     val theme = preset.theme
-    val pale = Accent.toHsl(preset.wallpaper.top).third > 0.6f
+    val pale = remember(bitmap) { WallpaperArt.paleOnTop(bitmap) }
     val ink = if (pale) Color(0xFF1B1A17) else Color(0xFFF3EFE7)
     val accent = Color(Accent.resolve(theme.accent, null, theme.accentHue).let { if (pale) Accent.deep(it) else it })
     val family = fontFamilyFor(theme.font)
@@ -716,7 +718,14 @@ private fun PresetCard(preset: Presets.Preset, label: String, selected: Boolean,
                 repeat(3) { i ->
                     Row(Modifier.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                         if (theme.showIcons) {
-                            Box(Modifier.size(13.dp).background(if (theme.iconStyle == IconStyle.Themed) accent else ink.copy(alpha = 0.85f), iconShape))
+                            when (theme.iconStyle) {
+                                IconStyle.Glyph -> Box(Modifier.size(13.dp).border(2.dp, accent, CircleShape))
+                                IconStyle.Themed -> Box(Modifier.size(13.dp).background(Color(0xFF1C1B22), iconShape), contentAlignment = Alignment.Center) {
+                                    Box(Modifier.size(5.dp).background(accent, CircleShape))
+                                }
+                                IconStyle.Tinted -> Box(Modifier.size(13.dp).background(accent, iconShape))
+                                else -> Box(Modifier.size(13.dp).background(ink.copy(alpha = 0.85f), iconShape))
+                            }
                             Spacer(Modifier.width(6.dp))
                         }
                         Box(Modifier.size(width = (44 - i * 9).dp, height = 5.dp).background(ink.copy(alpha = 0.7f), CircleShape))
@@ -811,6 +820,8 @@ private fun iconStyleLabel(s: IconStyle): String = stringResource(
     when (s) {
         IconStyle.System -> R.string.icons_system
         IconStyle.Themed -> R.string.icons_themed
+        IconStyle.Glyph -> R.string.icons_glyph
+        IconStyle.Tinted -> R.string.icons_tinted
         IconStyle.Pack -> R.string.icons_pack
     },
 )

@@ -575,7 +575,7 @@ private fun WidgetEditRow(stack: WidgetStack, onRemove: (WidgetRef) -> Unit, onH
 }
 
 /**
- * Niagara's header: an "open" mark and the app's name, which opens the app, and a way to clear
+ * Niagara's header: the app's name in the accent, which opens the app, and a way to clear
  * everything when there's anything to clear.
  */
 @OptIn(ExperimentalFoundationApi::class)
@@ -607,14 +607,10 @@ private fun Header(
                 .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (onOpen != null) {
-                SlateIconView(SlateIcon.OpenExternal, palette.onWallpaper, size = 16.dp)
-                Spacer(Modifier.width(8.dp))
-            }
             Text(
                 label,
                 style = SlateText.appLabel.copy(fontSize = 16.sp, fontWeight = FontWeight.Bold, shadow = null),
-                color = palette.onWallpaper,
+                color = palette.accent,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.semantics { heading() },

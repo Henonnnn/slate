@@ -230,7 +230,7 @@ private fun Pill(items: List<FloatingItem>, options: FloatingSources, expanded: 
     // Plain state while the finger moves: nothing queued can land after the release and fight the settle.
     var drag by remember { mutableFloatStateOf(0f) }
     var settle by remember { mutableStateOf<Job?>(null) }
-    // Sideways: the whole pill slides off to the left and out of the way.
+    // Sideways: the whole pill slides off to the right, towards the search button, and out of the way.
     var slide by remember { mutableFloatStateOf(0f) }
     var slideSettle by remember { mutableStateOf<Job?>(null) }
     val hidePx = with(density) { HideDistance.toPx() }
@@ -257,7 +257,7 @@ private fun Pill(items: List<FloatingItem>, options: FloatingSources, expanded: 
                 .fillMaxWidth()
                 .graphicsLayer {
                     translationX = slide
-                    alpha = 1f - (-slide / (hidePx * 3f)).coerceIn(0f, 0.85f)
+                    alpha = 1f - (slide / (hidePx * 3f)).coerceIn(0f, 0.85f)
                 }
                 .padding(horizontal = margin),
             verticalAlignment = Alignment.Bottom,
@@ -313,15 +313,15 @@ private fun Pill(items: List<FloatingItem>, options: FloatingSources, expanded: 
                     )
                     .draggable(
                         enabled = !expanded,
-                        // Only leftwards; a pull to the right just resists.
-                        state = rememberDraggableState { delta -> slide = (slide + delta).coerceAtMost(0f) },
+                        // Only rightwards; a pull to the left does nothing.
+                        state = rememberDraggableState { delta -> slide = (slide + delta).coerceAtLeast(0f) },
                         orientation = Orientation.Horizontal,
                         onDragStarted = { slideSettle?.cancel() },
                         onDragStopped = { velocity ->
-                            if (slide < -hidePx || velocity < -FLING) {
+                            if (slide > hidePx || velocity > FLING) {
                                 view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
                                 slideSettle = scope.launch {
-                                    animate(slide, -size.width.toFloat() * 1.2f, animationSpec = tween(160)) { v, _ -> slide = v }
+                                    animate(slide, size.width.toFloat() * 1.2f, animationSpec = tween(160)) { v, _ -> slide = v }
                                     onHide()
                                     slide = 0f
                                 }

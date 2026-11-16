@@ -18,6 +18,8 @@ import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -95,6 +97,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
@@ -610,6 +613,33 @@ fun HomeScreen(
             )
         }
 
+        // Every app under its letter, as Niagara's list has them. The headings are rows of the list, so
+        // a jump from the alphabet counts the ones above its target.
+        val letters = state.behaviour.letterHeadings
+        val letterGroups = remember(state.apps) {
+            val groups = ArrayList<Pair<Char, List<AppEntry>>>()
+            var start = 0
+            state.apps.forEachIndexed { i, app ->
+                if (i > 0 && app.bucket != state.apps[i - 1].bucket) {
+                    groups += state.apps[start].bucket to state.apps.subList(start, i)
+                    start = i
+                }
+            }
+            if (state.apps.isNotEmpty()) groups += state.apps[start].bucket to state.apps.subList(start, state.apps.size)
+            groups
+        }
+        // Headings above the app at [index] of state.apps, its own included.
+        fun headingsAbove(index: Int): Int {
+            var seen = 0
+            var count = 0
+            for ((_, group) in letterGroups) {
+                if (seen > index) break
+                count++
+                seen += group.size
+            }
+            return count - 1
+        }
+
         fun LazyListScope.topItems() {
             item(key = "header", contentType = "header") {
                 HomeHeader(state.clock, state.weatherPlace, homeOffsetPx, onLongPress = { homeMenu = true })
@@ -654,8 +684,11 @@ fun HomeScreen(
                 items(state.folders, key = { HOME_ALL + it.key }, contentType = { "app" }) { entry ->
                     ListRow(entry, null, showPreview = false, Modifier.animateItem())
                 }
-                items(state.apps, key = { HOME_ALL + it.key }, contentType = { "app" }) { entry ->
-                    ListRow(entry, rowSwipe, showPreview = false, Modifier.animateItem())
+                letterGroups.forEach { (letter, group) ->
+                    if (letters) letterHeading(HOME_ALL, letter)
+                    items(group, key = { HOME_ALL + it.key }, contentType = { "app" }) { entry ->
+                        ListRow(entry, rowSwipe, showPreview = false, Modifier.animateItem())
+                    }
                 }
             }
         }
@@ -664,8 +697,11 @@ fun HomeScreen(
             items(state.folders, key = { FOL + it.key }, contentType = { "app" }) { entry ->
                 ListRow(entry, null, showPreview = false, Modifier.animateItem().then(restModifier), hiddenAtRest = appsHidden)
             }
-            items(state.apps, key = { ALL + it.key }, contentType = { "app" }) { entry ->
-                ListRow(entry, rowSwipe, showPreview = false, Modifier.animateItem().then(restModifier), hiddenAtRest = appsHidden)
+            letterGroups.forEach { (letter, group) ->
+                if (letters) letterHeading(ALL, letter, restModifier)
+                items(group, key = { ALL + it.key }, contentType = { "app" }) { entry ->
+                    ListRow(entry, rowSwipe, showPreview = false, Modifier.animateItem().then(restModifier), hiddenAtRest = appsHidden)
+                }
             }
             val privateSpace = state.privateSpace?.takeIf { state.behaviour.showPrivateSpace } ?: return
             sectionLabel("private-header", R.string.private_space, restModifier)
@@ -808,9 +844,11 @@ fun HomeScreen(
                         allApps = false
                     } else {
                         val target = when (section) {
-                            is AlphabetSection.Letter -> AlphabetIndex.resolve(section.char, state.letterIndex)?.plus(state.folders.size)
+                            is AlphabetSection.Letter -> AlphabetIndex.resolve(section.char, state.letterIndex)?.let { index ->
+                                state.folders.size + index + if (letters) headingsAbove(index) else 0
+                            }
                             AlphabetSection.Folders -> 0
-                            else -> state.folders.size + state.apps.size
+                            else -> state.folders.size + state.apps.size + if (letters) letterGroups.size else 0
                         }
                         allApps = true
                         // The chosen section lands level with the alphabet, not at the very top.
@@ -845,8 +883,8 @@ fun HomeScreen(
             }
         }
 
-        // The Pill swiped away to the left stays away, activity by activity, until it's pulled back out of
-        // the search button with a swipe to the right. Anything new shows by itself.
+        // The Pill swiped away to the right stays away, activity by activity, until it's pulled back out of
+        // the search button with a swipe to the left. Anything new shows by itself.
         val pillItems = remember(floating.items, hiddenPill) { floating.items.filter { it.key !in hiddenPill } }
         val pillWaiting = pillItems.size < floating.items.size
         // Without the search button there'd be no way back, so then leaving home brings it back.
@@ -876,7 +914,7 @@ fun HomeScreen(
                         var pulled = 0f
                         detectHorizontalDragGestures(onDragStart = { pulled = 0f }) { _, amount ->
                             pulled += amount
-                            if (pulled > PILL_RETURN_PULL.toPx()) {
+                            if (pulled < -PILL_RETURN_PULL.toPx()) {
                                 view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                                 hiddenPill = emptySet()
                             }
@@ -890,8 +928,10 @@ fun HomeScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 SlateIconView(SlateIcon.Search, palette.panel, size = 26.dp)
-                // A mark at its edge while The Pill is tucked away behind it.
-                if (pillWaiting) Box(Modifier.align(Alignment.CenterEnd).padding(end = 5.dp).size(width = 3.dp, height = 16.dp).background(palette.panel, CircleShape))
+                // A thin outline while The Pill is tucked away behind it.
+                val ring by animateFloatAsState(if (pillWaiting) 1f else 0f, tween(220), label = "pillRing")
+                val ringColour = palette.onWallpaper
+                Box(Modifier.matchParentSize().drawBehind { if (ring > 0f) drawCircle(ringColour.copy(alpha = ring), radius = size.minDimension / 2f - 1.5.dp.toPx(), style = Stroke(2.dp.toPx())) })
             }
         }
 
@@ -1387,6 +1427,18 @@ fun HomeScreen(
                 actions.rename(entry, label)
                 renameKey = null
             },
+        )
+    }
+}
+
+/** A letter over its apps: Niagara's `home_tile_section_header` (20 sp, 16 dp above, 2 dp below). */
+private fun LazyListScope.letterHeading(prefix: String, letter: Char, modifier: Modifier = Modifier) {
+    item(key = "letter:$prefix$letter", contentType = "letter") {
+        Text(
+            text = letter.toString(),
+            style = SlateText.appLabel.copy(fontSize = 20.sp, fontWeight = FontWeight.Bold),
+            color = LocalSlatePalette.current.onWallpaper,
+            modifier = modifier.animateItem().padding(start = 36.dp, end = 28.dp, top = 16.dp, bottom = 2.dp).semantics { heading() },
         )
     }
 }

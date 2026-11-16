@@ -1,24 +1,28 @@
 package dev.slate.launcher.ui.theme
 
+import android.annotation.SuppressLint
 import android.app.WallpaperManager
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.RadialGradient
 import android.graphics.Shader
 import android.util.Log
+import androidx.annotation.DrawableRes
 import androidx.core.graphics.createBitmap
+import androidx.core.graphics.get
+import dev.slate.launcher.R
 import dev.slate.launcher.data.WallpaperSpec
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
 
 /**
- * The wallpapers that go with Slate's looks. They're drawn here, not shipped as pictures: a
- * fall of colour from top to bottom with two soft glows, so the list reads on them, they weigh
- * nothing in the APK, and they come out sharp at any screen size.
+ * The wallpapers that go with Slate's looks: a bundled public-domain picture each ([picture]),
+ * and a drawing for any look without one, a fall of colour from top to bottom with two soft glows.
  */
 object WallpaperArt {
 
@@ -44,13 +48,60 @@ object WallpaperArt {
         canvas.drawCircle(x, y, radius, paint)
     }
 
+    /**
+     * The picture bundled for a look (see third_party/wallpapers: old paintings, prints and one
+     * photograph, all in the public domain), or null for a look that only has its drawn fall of colour.
+     */
+    @DrawableRes
+    fun picture(preset: String): Int? = when (preset) {
+        "slate" -> R.drawable.wall_slate
+        "paper" -> R.drawable.wall_paper
+        "mono" -> R.drawable.wall_mono
+        "night" -> R.drawable.wall_night
+        "bold" -> R.drawable.wall_bold
+        "quiet" -> R.drawable.wall_quiet
+        "dusk" -> R.drawable.wall_dusk
+        "ocean" -> R.drawable.wall_ocean
+        "dawn" -> R.drawable.wall_dawn
+        else -> null
+    }
+
+    /** A look's wallpaper small enough for its card: the picture sampled down, else the drawing. */
+    suspend fun thumbnail(context: Context, preset: String, spec: WallpaperSpec): Bitmap = withContext(Dispatchers.IO) {
+        picture(preset)?.let { id ->
+            BitmapFactory.decodeResource(context.resources, id, BitmapFactory.Options().apply { inSampleSize = 4; inScaled = false })
+        } ?: render(spec, 132, 220)
+    }
+
+    /** Whether dark text reads on the top of it, where the clock sits. */
+    fun paleOnTop(bitmap: Bitmap): Boolean {
+        var sum = 0L
+        var n = 0
+        for (y in 0 until bitmap.height / 3 step 4) {
+            for (x in 0 until bitmap.width step 4) {
+                val p = bitmap[x, y]
+                sum += (((p shr 16) and 0xFF) * 54 + ((p shr 8) and 0xFF) * 183 + (p and 0xFF) * 19) shr 8
+                n++
+            }
+        }
+        return n > 0 && sum / n > 150
+    }
+
     /** Sets it as the home-screen wallpaper (the lock screen keeps its own). False if the system refuses. */
-    suspend fun apply(context: Context, spec: WallpaperSpec): Boolean = withContext(Dispatchers.Default) {
+    suspend fun apply(context: Context, preset: String, spec: WallpaperSpec): Boolean = withContext(Dispatchers.IO) {
         val metrics = context.resources.displayMetrics
         val manager = WallpaperManager.getInstance(context)
         try {
             if (!manager.isSetWallpaperAllowed) return@withContext false
-            manager.setBitmap(render(spec, metrics.widthPixels, metrics.heightPixels), null, true, WallpaperManager.FLAG_SYSTEM)
+            val picture = picture(preset)
+            if (picture != null) {
+                // A drawable-nodpi WebP, read as it is: the system decodes and crops it.
+                @SuppressLint("ResourceType")
+                val stream = context.resources.openRawResource(picture)
+                stream.use { manager.setStream(it, null, true, WallpaperManager.FLAG_SYSTEM) }
+            } else {
+                manager.setBitmap(render(spec, metrics.widthPixels, metrics.heightPixels), null, true, WallpaperManager.FLAG_SYSTEM)
+            }
             true
         } catch (e: IOException) {
             Log.w("WallpaperArt", "Cannot set the wallpaper", e)

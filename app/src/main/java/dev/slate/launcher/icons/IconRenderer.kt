@@ -12,6 +12,7 @@ import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.InsetDrawable
 import android.os.Build
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.drawable.toBitmap
@@ -38,7 +39,9 @@ data class IconAppearance(
     val themedTint: Int = 0,
     val overrides: Map<String, IconOverride> = emptyMap(),
 ) {
-    val tag: String get() = "${style.name}|${if (style == IconStyle.Pack) pack else ""}|${shape.name}|${if (style == IconStyle.Themed) themedTint else 0}"
+    private val IconStyle.tinted get() = this == IconStyle.Themed || this == IconStyle.Glyph || this == IconStyle.Tinted
+
+    val tag: String get() = "${style.name}|${if (style == IconStyle.Pack) pack else ""}|${shape.name}|${if (style.tinted) themedTint else 0}|v2"
 
     fun overrideTag(entry: AppEntry): String = overrides[entry.key]?.let { "${it.pack}:${it.drawable}" }.orEmpty()
 }
@@ -64,7 +67,8 @@ class IconRenderer(private val context: Context, private val packs: IconPackRepo
                 pack.forComponent(entry.packageName, entry.component.className, density) ?: packTreatment(own, pack, entry, sizePx)
             } ?: own
             IconStyle.Themed -> themed(own, look.themedTint) ?: own
-            IconStyle.System -> own
+            IconStyle.Glyph -> glyph(own, look.themedTint, sizePx) ?: own
+            IconStyle.Tinted, IconStyle.System -> own
         }
 
         val bitmap = if (drawable is AdaptiveIconDrawable && look.shape != IconShape.System) {
@@ -72,17 +76,49 @@ class IconRenderer(private val context: Context, private val packs: IconPackRepo
         } else {
             drawable.toBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         }
+        if (look.style == IconStyle.Tinted && override == null) IconGlyph.recolour(bitmap, look.themedTint)
         if (!entry.isWorkProfile) return bitmap
         val badged = context.packageManager.getUserBadgedIcon(bitmap.toDrawable(context.resources), entry.user)
         return badged.toBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
     }
 
-    /** Android 13+ monochrome layer on a dark plate, tinted with the accent. */
+    /** The one-colour glyph on a dark plate of the accent's own hue. */
     private fun themed(own: Drawable, tint: Int): Drawable? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || own !is AdaptiveIconDrawable) return null
-        val mono = own.monochrome?.mutate() ?: return null
+        val mono = monoLayer(own) ?: return null
         mono.setTint(tint)
-        return AdaptiveIconDrawable(THEMED_PLATE.toDrawable(), mono)
+        return AdaptiveIconDrawable(IconGlyph.plate(tint).toDrawable(), mono)
+    }
+
+    /** The glyph alone, larger, since no plate frames it. */
+    private fun glyph(own: Drawable, tint: Int, size: Int): Drawable? {
+        val mono = monoLayer(own) ?: return null
+        mono.setTint(tint)
+        val out = createBitmap(size, size)
+        val pad = (size * GLYPH_BLEED).toInt()
+        mono.setBounds(-pad, -pad, size + pad, size + pad)
+        mono.draw(Canvas(out))
+        return out.toDrawable(context.resources)
+    }
+
+    /**
+     * A tintable drawable laid out as an adaptive-icon layer (108 units, the middle 72 seen): the app's
+     * own monochrome layer where it ships one (Android 13+), else a glyph worked out from its icon, so
+     * every app gets one and the list looks all of a piece.
+     */
+    private fun monoLayer(own: Drawable): Drawable? {
+        if (own is AdaptiveIconDrawable) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) own.monochrome?.let { return it.mutate() }
+            val foreground = own.foreground ?: return null
+            val source = createBitmap(LAYER_PX, LAYER_PX)
+            foreground.setBounds(0, 0, LAYER_PX, LAYER_PX)
+            foreground.draw(Canvas(source))
+            // The plate is the background layer, so an opaque foreground is measured against it.
+            val behind = (own.background as? android.graphics.drawable.ColorDrawable)?.color
+            return IconGlyph.derive(source, behind)?.toDrawable(context.resources)
+        }
+        val mask = IconGlyph.derive(own.toBitmap(LAYER_PX, LAYER_PX, Bitmap.Config.ARGB_8888), null) ?: return null
+        // A legacy icon fills its square, so it's set into the middle like a foreground layer.
+        return InsetDrawable(mask.toDrawable(context.resources), LEGACY_INSET)
     }
 
     /** The pack's look for apps it has no icon for: back plate, scaled icon, mask cut-out, overlay. */
@@ -150,6 +186,8 @@ class IconRenderer(private val context: Context, private val packs: IconPackRepo
     }
 
     private companion object {
-        const val THEMED_PLATE = 0xFF2A2825.toInt()
+        const val LAYER_PX = 216
+        const val GLYPH_BLEED = 0.42f
+        const val LEGACY_INSET = 0.24f
     }
 }

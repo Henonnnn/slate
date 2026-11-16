@@ -53,4 +53,5 @@ Save a backup in *Settings → Backup* before switching.
 
 One Gradle module, `app/`. The code is under `app/src/main/java/dev/slate/launcher/`, one package per
 area (`apps`, `notifications`, `floating` for The Pill, `ui/...`). `third_party/fonts/` holds the
-licences of the two bundled fonts (Google Sans Flex and Kumbh Sans, both SIL OFL 1.1).
+licences of the two bundled fonts (Google Sans Flex and Kumbh Sans, both SIL OFL 1.1). `third_party/wallpapers/`
+lists the public-domain pictures used as the looks' wallpapers, with their sources.

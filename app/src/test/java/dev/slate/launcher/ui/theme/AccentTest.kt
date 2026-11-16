@@ -50,13 +50,13 @@ class AccentTest {
 
     @Test fun presetsKeepTheChosenIconPack() {
         val current = ThemeSettings(iconStyle = IconStyle.Pack, iconPack = "com.pack")
-        val paper = Presets.apply(current, "paper")
-        assertEquals("paper", paper.preset)
+        val paper = Presets.apply(current, "quiet")
+        assertEquals("quiet", paper.preset)
         assertEquals(IconStyle.Pack, paper.iconStyle)
         assertEquals("com.pack", paper.iconPack)
         // A preset with its own icon style wins, but the pack stays remembered.
         val mono = Presets.apply(current, "mono")
-        assertEquals(IconStyle.Themed, mono.iconStyle)
+        assertEquals(IconStyle.Glyph, mono.iconStyle)
         assertEquals("com.pack", mono.iconPack)
         assertEquals(Presets.CUSTOM, Presets.edited(paper).preset)
     }

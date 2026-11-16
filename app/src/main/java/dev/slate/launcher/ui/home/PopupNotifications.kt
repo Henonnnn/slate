@@ -6,7 +6,11 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import android.icu.text.MeasureFormat
+import android.icu.util.Measure
+import android.icu.util.MeasureUnit
 import android.text.format.DateUtils
+import java.util.Locale
 import android.view.HapticFeedbackConstants
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -93,6 +97,16 @@ private const val REPLY_LINES = 9
 private const val DISMISS_AT = 0.35f
 private const val DISMISS_VELOCITY = 1500f
 
+/** "now"-less age in the shortest local form: 47m, 3h, 2d. */
+private fun shortAge(millis: Long): String {
+    val (amount, unit) = when {
+        millis < DateUtils.HOUR_IN_MILLIS -> millis / DateUtils.MINUTE_IN_MILLIS to MeasureUnit.MINUTE
+        millis < DateUtils.DAY_IN_MILLIS -> millis / DateUtils.HOUR_IN_MILLIS to MeasureUnit.HOUR
+        else -> millis / DateUtils.DAY_IN_MILLIS to MeasureUnit.DAY
+    }
+    return MeasureFormat.getInstance(Locale.getDefault(), MeasureFormat.FormatWidth.NARROW).format(Measure(amount, unit))
+}
+
 /**
  * One notification in a pop-up. Collapsed it's a preview; the chevron expands it in place to the
  * full text, conversation, picture and actions. Tapping opens it and a sideways swipe clears it.
@@ -122,7 +136,7 @@ fun NotificationTile(
         if (now - n.postTime < DateUtils.MINUTE_IN_MILLIS) {
             nowLabel
         } else {
-            DateUtils.getRelativeTimeSpanString(n.postTime, now, DateUtils.MINUTE_IN_MILLIS, DateUtils.FORMAT_ABBREV_RELATIVE).toString()
+            shortAge(now - n.postTime)
         }
     }
     val largeIcon by produceState<ImageBitmap?>(null, n.key, n.postTime) { value = readLargeIcon(context, n) }
@@ -155,7 +169,7 @@ fun NotificationTile(
                         val headline = appName ?: (shown?.title ?: n.title).ifBlank { owner.label }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(headline, style = primary, color = palette.onWallpaper, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                            Text(" · $time", style = primary, color = palette.onWallpaperMuted, maxLines = 1)
+                            Text(" · $time", style = secondary, color = palette.onWallpaperMuted, maxLines = 1)
                         }
                         val second = if (appName != null) (shown?.title ?: n.title) else shown?.subText.orEmpty()
                         if (second.isNotBlank()) {
@@ -172,17 +186,16 @@ fun NotificationTile(
                             )
                         }
                     }
-                    Spacer(Modifier.width(8.dp))
+                    // A bare chevron, as quiet as the time beside it; the touch target stays full size.
                     Box(
                         Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(palette.panelRaised)
                             .clickable(role = Role.Button, onClickLabel = toggleLabel, onClick = onToggle)
                             .semantics { contentDescription = toggleLabel },
                         contentAlignment = Alignment.Center,
                     ) {
-                        SlateIconView(SlateIcon.ChevronDown, palette.accent, Modifier.graphicsLayer { rotationZ = rotation }, size = 20.dp)
+                        SlateIconView(SlateIcon.ChevronDown, palette.onWallpaperMuted, Modifier.graphicsLayer { rotationZ = rotation }, size = 18.dp)
                     }
                 }
                 if (shown != null) Expanded(shown, onAction, onSmartReply)
@@ -196,8 +209,11 @@ fun NotificationTile(
 private fun Expanded(detail: NotificationDetail, onAction: (NotificationAction) -> Unit, onSmartReply: (NotificationReply, String) -> Unit) {
     val palette = LocalSlatePalette.current
     val secondary = SlateText.hint.copy(fontSize = 14.sp, lineHeight = 20.sp, shadow = null)
+    // Text and chips keep the title's left edge, so the card reads down one line; pictures and
+    // conversations, which bring their own pictures, take the whole width.
+    val indent = IconSize + IconGap
     detail.body?.let {
-        Text(it, style = secondary, color = palette.onWallpaperMuted, maxLines = EXPANDED_LINES, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 12.dp))
+        Text(it, style = secondary, color = palette.onWallpaperMuted, maxLines = EXPANDED_LINES, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = indent, top = 6.dp))
     }
     if (detail.messages.isNotEmpty()) {
         Column(Modifier.padding(top = 8.dp)) { detail.messages.forEach { MessageRow(it) } }
@@ -212,7 +228,7 @@ private fun Expanded(detail: NotificationDetail, onAction: (NotificationAction) 
     }
     val reply = detail.reply
     if (detail.actions.isNotEmpty() || reply?.choices?.isNotEmpty() == true) {
-        FlowRow(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(Modifier.padding(start = indent, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             detail.actions.forEach { action -> Chip(action.title, outlined = false) { onAction(action) } }
             reply?.choices?.forEach { choice -> Chip(choice, outlined = true) { onSmartReply(reply, choice) } }
         }

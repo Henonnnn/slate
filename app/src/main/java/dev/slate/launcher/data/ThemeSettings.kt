@@ -53,8 +53,12 @@ enum class FontChoice {
 enum class IconStyle {
     /** The app's own icon. */
     @SerialName("system") System,
-    /** Android 13+ monochrome layer, tinted; apps without one keep their normal icon. */
+    /** A one-colour glyph in the accent on a dark plate: the app's monochrome layer, or one worked out from its icon. */
     @SerialName("themed") Themed,
+    /** The same glyph with no plate, drawn straight on the wallpaper. */
+    @SerialName("glyph") Glyph,
+    /** The app's own icon recoloured into shades of the accent. */
+    @SerialName("tinted") Tinted,
     /** An installed ADW/Nova-format icon pack ([ThemeSettings.iconPack]). */
     @SerialName("pack") Pack,
 }
@@ -122,7 +126,7 @@ object Presets {
     const val DEFAULT = "slate"
     const val CUSTOM = "custom"
 
-    /** A look, and the wallpaper drawn to go with it (set only when the user asks). */
+    /** A look, and the drawn stand-in for its wallpaper; the picture itself is `WallpaperArt.picture(id)`. Set only when the user asks. */
     data class Preset(val id: String, val theme: ThemeSettings, val wallpaper: WallpaperSpec)
 
     private fun spec(top: Long, bottom: Long, glow: Long) = WallpaperSpec(top.toInt(), bottom.toInt(), glow.toInt())
@@ -132,29 +136,29 @@ object Presets {
         Preset(
             "paper",
             // Text follows the wallpaper: dark on this pale one, light if the user keeps a dark one.
-            ThemeSettings(preset = "paper", accent = AccentChoice.Sand, font = FontChoice.Serif, textScale = 1.05f, wallpaperText = TextTone.Auto, panel = PanelTone.Light),
+            ThemeSettings(preset = "paper", accent = AccentChoice.Sand, font = FontChoice.Serif, textScale = 1.05f, wallpaperText = TextTone.Auto, panel = PanelTone.Light, iconStyle = IconStyle.Tinted, iconShape = IconShape.RoundedSquare),
             spec(0xFFF4ECDD, 0xFFDCCFB6, 0xFFE9B96E),
         ),
         Preset(
             "mono",
-            ThemeSettings(preset = "mono", accent = AccentChoice.Chalk, font = FontChoice.Mono, textScale = 0.9f, dimming = 0.25f, iconStyle = IconStyle.Themed, panel = PanelTone.Black),
+            ThemeSettings(preset = "mono", accent = AccentChoice.Chalk, font = FontChoice.Mono, textScale = 0.9f, dimming = 0.25f, iconStyle = IconStyle.Glyph, panel = PanelTone.Black),
             spec(0xFF2A2A2A, 0xFF0A0A0A, 0xFF6B6B6B),
         ),
-        Preset("night", ThemeSettings(preset = "night", accent = AccentChoice.Tide, dimming = 0.5f, iconShape = IconShape.Circle), spec(0xFF0E1A33, 0xFF050912, 0xFF3F7FBF)),
+        Preset("night", ThemeSettings(preset = "night", accent = AccentChoice.Tide, dimming = 0.5f, iconStyle = IconStyle.Themed, iconShape = IconShape.Circle), spec(0xFF0E1A33, 0xFF050912, 0xFF3F7FBF)),
         Preset(
             "bold",
-            ThemeSettings(preset = "bold", accent = AccentChoice.Ember, font = FontChoice.Condensed, textScale = 1.2f, iconShape = IconShape.Squircle),
+            ThemeSettings(preset = "bold", accent = AccentChoice.Ember, font = FontChoice.Condensed, textScale = 1.2f, iconStyle = IconStyle.Tinted, iconShape = IconShape.Squircle),
             spec(0xFF7A1F12, 0xFF1E0806, 0xFFFF8A4C),
         ),
         Preset("quiet", ThemeSettings(preset = "quiet", accent = AccentChoice.Moss, textScale = 1.1f, showIcons = false), spec(0xFF2E4034, 0xFF101A14, 0xFF8FBF8A)),
         Preset(
             "dusk",
-            ThemeSettings(preset = "dusk", accent = AccentChoice.Plum, font = FontChoice.Google, iconShape = IconShape.Circle),
+            ThemeSettings(preset = "dusk", accent = AccentChoice.Plum, font = FontChoice.Google, iconStyle = IconStyle.Tinted, iconShape = IconShape.Circle),
             spec(0xFF3B2456, 0xFF140B22, 0xFFE58BB8),
         ),
         Preset(
             "ocean",
-            ThemeSettings(preset = "ocean", accent = AccentChoice.Custom, accentHue = 175f, font = FontChoice.Kumbh, iconStyle = IconStyle.Themed, iconShape = IconShape.Squircle),
+            ThemeSettings(preset = "ocean", accent = AccentChoice.Custom, accentHue = 175f, font = FontChoice.Kumbh, iconStyle = IconStyle.Glyph, wallpaperText = TextTone.Auto),
             spec(0xFF0F4C5C, 0xFF06202A, 0xFF5ED0C0),
         ),
         Preset(
